@@ -25,4 +25,6 @@ namespace custom_std
 	void memcpy(void* dst, const void* src, unsigned long amount);
 
 	void memset(void* dst, unsigned char val, unsigned long amount);
+
+	bool memcmp(const void* dst, const void* src, unsigned long amount);
 };

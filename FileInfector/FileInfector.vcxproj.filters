@@ -30,6 +30,9 @@
     <ClCompile Include="Infector.cpp">
       <Filter>Common</Filter>
     </ClCompile>
+    <ClCompile Include="ReflectiveInjectionShellcode.cpp">
+      <Filter>Common</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="FileSystem\FileSystem.h">
@@ -44,10 +47,8 @@
     <ClInclude Include="ImportlessApi.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <MASM Include="ShellcodeJumper.masm">
+    <ClInclude Include="ReflectiveInjectionShellcode.h">
       <Filter>Common</Filter>
-    </MASM>
+    </ClInclude>
   </ItemGroup>
 </Project>

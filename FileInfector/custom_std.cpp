@@ -111,6 +111,19 @@ namespace custom_std
 	}
 
 
+	bool memcmp(const void* dst, const void* src, unsigned long amount)
+	{
+		for (size_t i = 0; i < amount; i++)
+		{
+			if (reinterpret_cast<const unsigned char*>(dst)[i] != reinterpret_cast<const unsigned char*>(src)[i])
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 
 };
 

