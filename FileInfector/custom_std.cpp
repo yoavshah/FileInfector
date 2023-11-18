@@ -102,6 +102,7 @@ namespace custom_std
 
 	}
 
+#pragma optimize("", off)
 	void memset(void* dst, unsigned char val, unsigned long amount)
 	{
 		for (size_t i = 0; i < amount; i++)
@@ -109,7 +110,7 @@ namespace custom_std
 			reinterpret_cast<char*>(dst)[i] = val;
 		}
 	}
-
+#pragma optimize("", on)
 
 	bool memcmp(const void* dst, const void* src, unsigned long amount)
 	{

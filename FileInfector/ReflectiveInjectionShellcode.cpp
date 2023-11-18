@@ -50,7 +50,6 @@ __declspec(safebuffers) _declspec(noinline) void ReflectiveInjectionShellcode()
 	decltype(GetProcAddress)* pGetProcAddress = IMPORTLESS_API_WITH_MODULE(GetProcAddress, hKernel32);
 	decltype(VirtualProtect)* pVirtualProtect = IMPORTLESS_API_WITH_MODULE(VirtualProtect, hKernel32);
 
-
 	/*
 		STEP 0
 		Find the PE module attached with the shellcode.
@@ -273,6 +272,8 @@ __declspec(safebuffers) _declspec(noinline) void ReflectiveInjectionShellcode()
 
 	return;
 }
+
+
 
 __declspec(safebuffers) __declspec(noinline) DWORD CalculateProtectionFlags(unsigned long ulSectionCharacteristics)
 {

