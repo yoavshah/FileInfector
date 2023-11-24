@@ -16,6 +16,9 @@
     <Filter Include="Common">
       <UniqueIdentifier>{c839d15f-4f1e-41d5-8783-b410735c35df}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Infector">
+      <UniqueIdentifier>{14379d87-9b3d-4911-85be-eeb3effbf6d4}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="FileInfector.cpp">
@@ -28,10 +31,10 @@
       <Filter>Common</Filter>
     </ClCompile>
     <ClCompile Include="Infector.cpp">
-      <Filter>Common</Filter>
+      <Filter>Infector</Filter>
     </ClCompile>
     <ClCompile Include="ReflectiveInjectionShellcode.cpp">
-      <Filter>Common</Filter>
+      <Filter>Infector</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -41,14 +44,14 @@
     <ClInclude Include="custom_std.h">
       <Filter>Common</Filter>
     </ClInclude>
-    <ClInclude Include="Infector.h">
-      <Filter>Common</Filter>
-    </ClInclude>
     <ClInclude Include="ImportlessApi.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Infector.h">
+      <Filter>Infector</Filter>
+    </ClInclude>
     <ClInclude Include="ReflectiveInjectionShellcode.h">
-      <Filter>Common</Filter>
+      <Filter>Infector</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

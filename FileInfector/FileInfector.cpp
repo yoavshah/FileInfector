@@ -31,9 +31,11 @@ void IterateFileFunction(const wchar_t* file)
 
 int main()
 {
+    MessageBoxA(0, "", "INFECTED", 0);
 
     Infector::InfectFile(L"C:\\Users\\Yoav\\Desktop\\YoavTools\\FileInfector\\x64\\Release\\MessageBox - Copy.exe");
 
+    MessageBoxA(0, "", "INFECTED2", 0);
 
     return 0;
 

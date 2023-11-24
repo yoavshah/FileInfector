@@ -4,6 +4,10 @@
 #include "ImportlessApi.hpp"
 #include "ReflectiveInjectionShellcode.h"
 
+#ifdef LOG_MESSAGEBOX
+#define LOG(message) MessageBoxA(0, message, message, 0)
+#endif
+
 namespace Infector
 {
 
