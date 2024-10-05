@@ -33,9 +33,12 @@ int main()
 {
     MessageBoxA(0, "", "INFECTED", 0);
 
-    Infector::InfectFile(L"C:\\Users\\Yoav\\Desktop\\YoavTools\\FileInfector\\x64\\Release\\MessageBox - Copy.exe");
+    bool succeed = Infector::InfectFile(L"C:\\Users\\Yoav\\Desktop\\YoavTools\\_shared\\FileInfector\\x64\\Release\\MessageBox - Copy.exe");
 
-    MessageBoxA(0, "", "INFECTED2", 0);
+    if (succeed)
+    {
+        MessageBoxA(0, "", "INFECTED2", 0);
+    }
 
     return 0;
 

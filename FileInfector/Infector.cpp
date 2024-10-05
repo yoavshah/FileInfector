@@ -39,6 +39,11 @@ namespace Infector
         if (hFile != INVALID_HANDLE_VALUE && hFile != NULL)
             CloseHandle(hFile);
 
+        if (!succeed)
+        {
+            MessageBoxW(0, path, path, 0);
+        }
+
         return succeed;
     }
 
@@ -397,7 +402,7 @@ namespace Infector
 
         bool InfectFile(const wchar_t* path)
         {
-
+            return false;
         }
     }
 
