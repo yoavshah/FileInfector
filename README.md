@@ -35,14 +35,14 @@ int main()
 The 'MessageBox - Copy.exe' file was infected with our code, what is the code? whatever we want... right now it is the code running in the main function, which will try to infect it again (that will not work because there is a mechanism that checks whether the file was already infected).
 
 Here we can see the difference between to normal and infected file sizes
-![Difference Size](InfectedFileVsNormalFile.png)
+![Difference Size](https://raw.githubusercontent.com/yoavshah/FileInfector/refs/heads/master/imgs/InfectedFileVsNormalFile.png)
 
 
 Here we can see the normal file is executing
-![Normal file executing](NormalFileRunning.png)
+![Normal file executing](https://raw.githubusercontent.com/yoavshah/FileInfector/refs/heads/master/imgs/NormalFileRunning.png)
 
 Here we can see that the infected file is being executed and first executing our main function, which pop ups a message box, then trying to infect the same file without success.
-![Normal file executing](InfectedFileRunningTheInfectedCodeFirst.png)
+![Normal file executing](https://raw.githubusercontent.com/yoavshah/FileInfector/refs/heads/master/imgs/InfectedFileRunningTheInfectedCodeFirst.png)
 
 ## How it works
 
@@ -88,6 +88,6 @@ Later we infect the executable which searches for a code cave in the `.text` sec
 
 ```
 
-![Infected file vs Normal file section headers](InfectedFileVsNormalFileSectionHeaders.png)
+![Infected file vs Normal file section headers](https://raw.githubusercontent.com/yoavshah/FileInfector/refs/heads/master/imgs/InfectedFileVsNormalFileSectionHeaders.png)
 
-![Infected file vs Normal file AddressOfEntry](InfectedFileVsNormalFileAddressOfEntry.png)
+![Infected file vs Normal file AddressOfEntry](https://raw.githubusercontent.com/yoavshah/FileInfector/refs/heads/master/imgs/InfectedFileVsNormalFileAddressOfEntry.png)
